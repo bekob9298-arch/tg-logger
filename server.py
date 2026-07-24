@@ -8,7 +8,7 @@ import os
 app = Flask(__name__)
 
 # Telegram Bot Bilgilerin
-TELEGRAM_TOKEN = '8704754477:AAE4ZDtCtyrcOC2mWHjKIKzxGXKMoK2MlAo'
+TELEGRAM_TOKEN = '8805256334:AAFwOefNpzlCH4vodCvbjHH8TVGlLK97DbY'
 TELEGRAM_CHAT_ID = '7092481089'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
